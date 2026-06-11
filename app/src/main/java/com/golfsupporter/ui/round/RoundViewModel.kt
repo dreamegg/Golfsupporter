@@ -10,15 +10,20 @@ import com.golfsupporter.data.model.PenaltyType
 import com.golfsupporter.data.model.Player
 import com.golfsupporter.data.model.RoundPhase
 import com.golfsupporter.data.model.RoundType
+import com.golfsupporter.data.location.LatLng
 import com.golfsupporter.data.repository.GameRepository
+import com.golfsupporter.data.weather.Weather
+import com.golfsupporter.data.weather.WeatherRepository
 import com.golfsupporter.ui.navigation.Routes
 import com.golfsupporter.util.RoundRules
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -38,6 +43,7 @@ data class RoundUiState(
     val penalties: Map<Int, Map<String, Int>> = emptyMap(), // playerId -> (typeId -> count) for current hole
     val firstHole: Int = 1,
     val lastHole: Int = 18,
+    val weather: Weather? = null,
 )
 
 sealed interface RoundNav {
@@ -48,6 +54,7 @@ sealed interface RoundNav {
 @HiltViewModel
 class RoundViewModel @Inject constructor(
     private val repository: GameRepository,
+    private val weatherRepository: WeatherRepository,
     savedStateHandle: SavedStateHandle,
 ) : ViewModel() {
 
@@ -97,6 +104,27 @@ class RoundViewModel @Inject constructor(
         ensureHoleInitialised(currentHole)
         publish(currentHole, phase)
         _uiState.update { it.copy(loading = false) }
+
+        startWeatherUpdates()
+    }
+
+    /**
+     * Periodically refreshes weather for the course location while the round is
+     * open (PRD G-006/G-007/G-008). Does nothing if no course was selected or no
+     * weather API key is configured (offline fallback, G-009).
+     */
+    private fun startWeatherUpdates() {
+        val lat = session.settings.courseLatitude ?: return
+        val lon = session.settings.courseLongitude ?: return
+        if (!weatherRepository.isEnabled) return
+        val coords = LatLng(lat, lon)
+        viewModelScope.launch {
+            while (isActive) {
+                val weather = weatherRepository.fetch(coords)
+                if (weather != null) _uiState.update { it.copy(weather = weather) }
+                delay(Weather.REFRESH_INTERVAL_MS)
+            }
+        }
     }
 
     private fun ensureHoleInitialised(hole: Int) {

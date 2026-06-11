@@ -2,6 +2,10 @@ package com.golfsupporter.ui.setup
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.golfsupporter.data.course.CourseRepository
+import com.golfsupporter.data.course.GolfCourse
+import com.golfsupporter.data.course.NearbyCourse
+import com.golfsupporter.data.location.LocationProvider
 import com.golfsupporter.data.model.GameSession
 import com.golfsupporter.data.model.GameSettings
 import com.golfsupporter.data.model.GameState
@@ -31,6 +35,12 @@ data class SetupUiState(
     val penaltyEnabled: Boolean = true,
     val penaltyTypes: List<PenaltyType> = emptyList(),
     val activePenaltyIds: Set<String> = emptySet(),
+    // v2.0 — course detection (PRD §10.1)
+    val courseDetecting: Boolean = false,
+    val nearbyCourses: List<NearbyCourse> = emptyList(),
+    val searchResults: List<GolfCourse> = emptyList(),
+    val selectedCourseName: String? = null,
+    val courseMessage: String? = null,
 ) {
     val activeHoles: List<Int> get() = RoundRules.holeRange(roundType).toList()
 }
@@ -41,7 +51,12 @@ const val MAX_CUSTOM_PENALTIES = 20
 @HiltViewModel
 class SetupViewModel @Inject constructor(
     private val repository: GameRepository,
+    private val courseRepository: CourseRepository,
+    private val locationProvider: LocationProvider,
 ) : ViewModel() {
+
+    private var selectedCourseLat: Double? = null
+    private var selectedCourseLon: Double? = null
 
     private val _uiState = MutableStateFlow(SetupUiState())
     val uiState = _uiState.asStateFlow()
@@ -120,6 +135,65 @@ class SetupViewModel @Inject constructor(
         _uiState.update { it.copy(activePenaltyIds = it.activePenaltyIds - id) }
     }
 
+    // ── Course detection (v2.0) ────────────────────────────────
+    /** Detects nearby courses from the current GPS location (PRD G-002). */
+    fun detectNearby() {
+        _uiState.update { it.copy(courseDetecting = true, courseMessage = null) }
+        viewModelScope.launch {
+            val location = locationProvider.currentLocation()
+            if (location == null) {
+                _uiState.update {
+                    it.copy(courseDetecting = false, courseMessage = "위치를 가져올 수 없습니다. 검색하거나 직접 설정하세요.")
+                }
+                return@launch
+            }
+            val nearby = courseRepository.nearby(location)
+            _uiState.update {
+                it.copy(
+                    courseDetecting = false,
+                    nearbyCourses = nearby,
+                    searchResults = emptyList(),
+                    courseMessage = if (nearby.isEmpty()) "주변 5km 내 골프장을 찾지 못했습니다." else null,
+                )
+            }
+        }
+    }
+
+    /** Searches courses by name/region (PRD G-003). */
+    fun searchCourses(query: String) {
+        viewModelScope.launch {
+            val results = courseRepository.search(query)
+            _uiState.update {
+                it.copy(
+                    searchResults = results,
+                    nearbyCourses = emptyList(),
+                    courseMessage = if (results.isEmpty()) "검색 결과가 없습니다." else null,
+                )
+            }
+        }
+    }
+
+    /** Applies a selected course: auto-loads its hole pars (PRD G-004). */
+    fun applyCourse(course: GolfCourse) {
+        selectedCourseLat = course.latitude
+        selectedCourseLon = course.longitude
+        _uiState.update { state ->
+            state.copy(
+                pars = state.pars.mapValues { (hole, current) -> course.holePars[hole] ?: current },
+                selectedCourseName = course.name,
+                nearbyCourses = emptyList(),
+                searchResults = emptyList(),
+                courseMessage = null,
+            )
+        }
+    }
+
+    fun clearCourse() {
+        selectedCourseLat = null
+        selectedCourseLon = null
+        _uiState.update { it.copy(selectedCourseName = null) }
+    }
+
     // ── Validation ─────────────────────────────────────────────
     fun playersValid(): Boolean {
         val s = _uiState.value
@@ -150,6 +224,9 @@ class SetupViewModel @Inject constructor(
                 scoreInputMode = s.scoreInputMode,
                 penaltyEnabled = s.penaltyEnabled,
                 activePenaltyIds = s.activePenaltyIds.toList(),
+                courseName = s.selectedCourseName,
+                courseLatitude = selectedCourseLat,
+                courseLongitude = selectedCourseLon,
             ),
             state = GameState(
                 currentHole = startHole,

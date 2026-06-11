@@ -28,7 +28,10 @@ data class GameSettingsEntity(
     val roundType: String,
     val scoreInputMode: String,
     val penaltyEnabled: Boolean,
-    val activePenaltyIds: List<String>
+    val activePenaltyIds: List<String>,
+    val courseName: String? = null,
+    val courseLatitude: Double? = null,
+    val courseLongitude: Double? = null
 )
 
 @Entity(

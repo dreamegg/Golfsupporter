@@ -2,6 +2,7 @@ package com.golfsupporter.di
 
 import android.content.Context
 import androidx.room.Room
+import com.golfsupporter.data.course.local.CourseDao
 import com.golfsupporter.data.local.GolfDatabase
 import com.golfsupporter.data.local.dao.GameDao
 import com.golfsupporter.data.local.dao.PenaltyTypeDao
@@ -28,4 +29,7 @@ object AppModule {
 
     @Provides
     fun providePenaltyTypeDao(db: GolfDatabase): PenaltyTypeDao = db.penaltyTypeDao()
+
+    @Provides
+    fun provideCourseDao(db: GolfDatabase): CourseDao = db.courseDao()
 }

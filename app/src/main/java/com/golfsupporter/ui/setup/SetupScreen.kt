@@ -1,5 +1,7 @@
 package com.golfsupporter.ui.setup
 
+import android.Manifest
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
@@ -17,7 +19,10 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Checkbox
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -30,6 +35,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -42,8 +48,12 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.golfsupporter.data.course.GolfCourse
 import com.golfsupporter.data.model.RoundType
 import com.golfsupporter.data.model.ScoreInputMode
+import com.google.accompanist.permissions.ExperimentalPermissionsApi
+import com.google.accompanist.permissions.isGranted
+import com.google.accompanist.permissions.rememberPermissionState
 
 @Composable
 fun SetupScreen(
@@ -154,6 +164,8 @@ private fun StepPlayers(state: SetupUiState, viewModel: SetupViewModel) {
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun StepPars(state: SetupUiState, viewModel: SetupViewModel) {
+    CourseDetectSection(state, viewModel)
+    Spacer(Modifier.height(16.dp))
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         listOf(3, 4, 5).forEach { par ->
             OutlinedButton(onClick = { viewModel.setAllPars(par) }) {
@@ -195,6 +207,107 @@ private fun HoleParToggle(hole: Int, par: Int, onCycle: () -> Unit) {
             Text("H$hole", fontSize = 11.sp)
             Text("PAR $par", fontWeight = FontWeight.Bold, fontSize = 13.sp)
         }
+    }
+}
+
+@OptIn(ExperimentalPermissionsApi::class)
+@Composable
+private fun CourseDetectSection(state: SetupUiState, viewModel: SetupViewModel) {
+    val permission = rememberPermissionState(Manifest.permission.ACCESS_FINE_LOCATION)
+    var pendingDetect by remember { mutableStateOf(false) }
+    var query by remember { mutableStateOf("") }
+
+    // Run detection once the permission is granted following a request.
+    LaunchedEffect(permission.status) {
+        if (pendingDetect && permission.status.isGranted) {
+            viewModel.detectNearby()
+            pendingDetect = false
+        }
+    }
+
+    Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondary.copy(alpha = 0.12f))) {
+        Column(Modifier.padding(12.dp)) {
+            Text("📍 골프장 자동 감지", fontWeight = FontWeight.SemiBold)
+
+            state.selectedCourseName?.let { name ->
+                Spacer(Modifier.height(6.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("선택됨: $name", modifier = Modifier.weight(1f), fontSize = 13.sp)
+                    TextButton(onClick = { viewModel.clearCourse() }) { Text("해제") }
+                }
+            }
+
+            Spacer(Modifier.height(8.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Button(
+                    onClick = {
+                        if (permission.status.isGranted) viewModel.detectNearby()
+                        else {
+                            pendingDetect = true
+                            permission.launchPermissionRequest()
+                        }
+                    },
+                    modifier = Modifier.weight(1f),
+                ) { Text("주변 감지") }
+            }
+
+            Spacer(Modifier.height(8.dp))
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedTextField(
+                    value = query,
+                    onValueChange = { query = it },
+                    label = { Text("골프장 검색") },
+                    singleLine = true,
+                    modifier = Modifier.weight(1f),
+                )
+                OutlinedButton(onClick = { viewModel.searchCourses(query) }, enabled = query.isNotBlank()) {
+                    Text("검색")
+                }
+            }
+
+            if (state.courseDetecting) {
+                Spacer(Modifier.height(8.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
+                    Spacer(Modifier.width(8.dp))
+                    Text("주변 골프장을 찾는 중…", fontSize = 13.sp)
+                }
+            }
+
+            state.courseMessage?.let {
+                Spacer(Modifier.height(6.dp))
+                Text(it, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f))
+            }
+
+            state.nearbyCourses.forEach { nearby ->
+                CourseRow(
+                    title = nearby.course.name + (nearby.course.courseName?.let { " · $it" } ?: ""),
+                    subtitle = "%.1f km".format(nearby.distanceKm),
+                    onClick = { viewModel.applyCourse(nearby.course) },
+                )
+            }
+            state.searchResults.forEach { course ->
+                CourseRow(
+                    title = course.name + (course.courseName?.let { " · $it" } ?: ""),
+                    subtitle = course.courseRating?.let { "CR $it" } ?: "",
+                    onClick = { viewModel.applyCourse(course) },
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun CourseRow(title: String, subtitle: String, onClick: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onClick() }
+            .padding(vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(title, modifier = Modifier.weight(1f), fontSize = 14.sp)
+        Text(subtitle, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
     }
 }
 

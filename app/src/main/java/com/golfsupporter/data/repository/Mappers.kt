@@ -52,14 +52,20 @@ fun GameSettingsEntity.toModel() = GameSettings(
     roundType = RoundType.valueOf(roundType),
     scoreInputMode = ScoreInputMode.valueOf(scoreInputMode),
     penaltyEnabled = penaltyEnabled,
-    activePenaltyIds = activePenaltyIds
+    activePenaltyIds = activePenaltyIds,
+    courseName = courseName,
+    courseLatitude = courseLatitude,
+    courseLongitude = courseLongitude
 )
 fun GameSettings.toEntity(sessionId: String) = GameSettingsEntity(
     sessionId = sessionId,
     roundType = roundType.name,
     scoreInputMode = scoreInputMode.name,
     penaltyEnabled = penaltyEnabled,
-    activePenaltyIds = activePenaltyIds
+    activePenaltyIds = activePenaltyIds,
+    courseName = courseName,
+    courseLatitude = courseLatitude,
+    courseLongitude = courseLongitude
 )
 
 // ── Score edit ──────────────────────────────────────────────

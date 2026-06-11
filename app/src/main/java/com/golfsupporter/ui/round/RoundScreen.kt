@@ -80,11 +80,21 @@ fun RoundScreen(
             .padding(16.dp)
     ) {
         // ── Header ──
-        Text(
-            "Hole ${state.currentHole} / PAR ${state.par}",
-            fontSize = 22.sp,
-            fontWeight = FontWeight.Bold,
-        )
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                "Hole ${state.currentHole} / PAR ${state.par}",
+                fontSize = 22.sp,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.weight(1f),
+            )
+            state.weather?.let { w ->
+                Text(
+                    "${w.iconEmoji} ${w.temperatureC}°C  💨 ${w.windDirection} ${w.windSpeedMs.toInt()}m/s",
+                    fontSize = 13.sp,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.75f),
+                )
+            }
+        }
         Spacer(Modifier.height(8.dp))
         RoundProgress(state)
         Spacer(Modifier.height(12.dp))

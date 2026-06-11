@@ -1,9 +1,23 @@
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.ksp)
     alias(libs.plugins.hilt)
+}
+
+// OpenWeatherMap API key — read from local.properties (OPENWEATHER_API_KEY=...)
+// or the OPENWEATHER_API_KEY environment variable. Empty disables weather
+// gracefully (offline fallback per PRD G-009).
+val openWeatherApiKey: String = run {
+    val props = Properties()
+    val file = rootProject.file("local.properties")
+    if (file.exists()) file.inputStream().use { props.load(it) }
+    props.getProperty("OPENWEATHER_API_KEY")
+        ?: System.getenv("OPENWEATHER_API_KEY")
+        ?: ""
 }
 
 android {
@@ -21,6 +35,8 @@ android {
         vectorDrawables {
             useSupportLibrary = true
         }
+
+        buildConfigField("String", "OPENWEATHER_API_KEY", "\"$openWeatherApiKey\"")
     }
 
     buildTypes {
@@ -41,6 +57,7 @@ android {
     }
     buildFeatures {
         compose = true
+        buildConfig = true
     }
     packaging {
         resources {
@@ -75,6 +92,15 @@ dependencies {
     ksp(libs.hilt.compiler)
 
     implementation(libs.kotlinx.coroutines.android)
+
+    // Location + network + permissions (v2.0 — PRD Section 10)
+    implementation(libs.play.services.location)
+    implementation(libs.kotlinx.coroutines.play.services)
+    implementation(libs.retrofit)
+    implementation(libs.retrofit.converter.gson)
+    implementation(libs.okhttp)
+    implementation(libs.okhttp.logging)
+    implementation(libs.accompanist.permissions)
 
     testImplementation(libs.junit)
     testImplementation(libs.kotlinx.coroutines.test)

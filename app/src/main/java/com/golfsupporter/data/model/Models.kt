@@ -63,7 +63,11 @@ data class GameSettings(
     val roundType: RoundType,
     val scoreInputMode: ScoreInputMode,
     val penaltyEnabled: Boolean,
-    val activePenaltyIds: List<String>
+    val activePenaltyIds: List<String>,
+    // v2.0 — selected course location, used for the in-round weather display.
+    val courseName: String? = null,
+    val courseLatitude: Double? = null,
+    val courseLongitude: Double? = null
 )
 
 // ─── Game state ──────────────────────────────────────────────────────

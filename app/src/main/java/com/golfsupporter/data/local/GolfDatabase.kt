@@ -3,6 +3,8 @@ package com.golfsupporter.data.local
 import androidx.room.Database
 import androidx.room.RoomDatabase
 import androidx.room.TypeConverters
+import com.golfsupporter.data.course.local.CachedCourseEntity
+import com.golfsupporter.data.course.local.CourseDao
 import com.golfsupporter.data.local.dao.GameDao
 import com.golfsupporter.data.local.dao.PenaltyTypeDao
 import com.golfsupporter.data.local.entity.GameSessionEntity
@@ -24,14 +26,16 @@ import com.golfsupporter.data.local.entity.ScoreEditEntity
         PenaltyRecordEntity::class,
         PenaltyTypeEntity::class,
         ScoreEditEntity::class,
+        CachedCourseEntity::class,
     ],
-    version = 1,
+    version = 2,
     exportSchema = false
 )
 @TypeConverters(Converters::class)
 abstract class GolfDatabase : RoomDatabase() {
     abstract fun gameDao(): GameDao
     abstract fun penaltyTypeDao(): PenaltyTypeDao
+    abstract fun courseDao(): CourseDao
 
     companion object {
         const val NAME = "golf_score_tracker.db"
