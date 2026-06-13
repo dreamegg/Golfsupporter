@@ -1,12 +1,11 @@
 package com.golfsupporter.ui.round
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -18,9 +17,8 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Check
-import androidx.compose.material3.FilterChip
-import androidx.compose.material3.FilterChipDefaults
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material3.Icon
 import androidx.compose.material3.OutlinedIconButton
 import androidx.compose.ui.graphics.Color
@@ -193,86 +191,110 @@ fun RoundScreen(
 }
 
 /**
- * Inline penalty entry (replaces the bottom sheet): pick one or more players by
- * name, then the −/+ controls per penalty type apply to everyone selected. The
- * controls stay disabled until at least one name is chosen.
+ * Inline penalty entry: tap a player's name to expand a panel of penalty types,
+ * then use −/+ to record penalties for that specific player. Each player expands
+ * independently; collapsed rows show a summary of what they already have.
  */
-@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun PenaltyInlineSection(
     state: RoundUiState,
     onChange: (playerId: Int, typeId: String, delta: Int) -> Unit,
 ) {
-    var selected by remember { mutableStateOf(emptySet<Int>()) }
+    var expanded by remember { mutableStateOf(emptySet<Int>()) }
 
     Text("⚠️ 벌칙 입력", fontWeight = FontWeight.Bold, fontSize = 15.sp)
     Spacer(Modifier.height(4.dp))
     Text(
-        "이름을 선택한 뒤 −/+ 로 입력하세요",
+        "이름을 탭하면 벌칙 항목이 펼쳐집니다",
         fontSize = 12.sp,
         color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
     )
     Spacer(Modifier.height(8.dp))
 
-    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        state.players.forEach { player ->
-            val isSel = player.id in selected
-            FilterChip(
-                selected = isSel,
-                onClick = {
-                    selected = if (isSel) selected - player.id else selected + player.id
-                },
-                label = { Text(player.name) },
-                leadingIcon = if (isSel) {
-                    { Icon(Icons.Filled.Check, contentDescription = null, modifier = Modifier.size(18.dp)) }
-                } else null,
-                colors = FilterChipDefaults.filterChipColors(
-                    selectedContainerColor = MaterialTheme.colorScheme.primary,
-                    selectedLabelColor = MaterialTheme.colorScheme.onPrimary,
-                    selectedLeadingIconColor = MaterialTheme.colorScheme.onPrimary,
-                ),
-                border = FilterChipDefaults.filterChipBorder(
-                    enabled = true,
-                    selected = isSel,
-                    borderColor = MaterialTheme.colorScheme.outline,
-                ),
-            )
-        }
-    }
-
-    Spacer(Modifier.height(8.dp))
-    state.activePenaltyTypes.forEach { type ->
-        val totalForType = selected.sumOf { pid -> state.penalties[pid]?.get(type.id) ?: 0 }
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(vertical = 4.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text("${type.emoji} ${type.label}", modifier = Modifier.weight(1f), fontSize = 15.sp)
-            OutlinedIconButton(
-                onClick = { selected.forEach { pid -> onChange(pid, type.id, -1) } },
-                enabled = selected.isNotEmpty() && totalForType > 0,
-                modifier = Modifier.size(40.dp),
-            ) { Text("−", fontSize = 20.sp) }
-            Text(
-                "$totalForType",
-                modifier = Modifier.width(36.dp),
-                fontSize = 16.sp,
-                fontWeight = FontWeight.Bold,
-                textAlign = TextAlign.Center,
-            )
-            OutlinedIconButton(
-                onClick = { selected.forEach { pid -> onChange(pid, type.id, 1) } },
-                enabled = selected.isNotEmpty(),
-                modifier = Modifier.size(40.dp),
-            ) { Text("+", fontSize = 20.sp) }
-        }
+    state.players.forEach { player ->
+        val isOpen = player.id in expanded
+        val playerPenalties = state.penalties[player.id].orEmpty().filterValues { it > 0 }
+        PlayerPenaltyItem(
+            player = player,
+            isOpen = isOpen,
+            playerPenalties = playerPenalties,
+            activeTypes = state.activePenaltyTypes,
+            onToggle = {
+                expanded = if (isOpen) expanded - player.id else expanded + player.id
+            },
+            onChange = { typeId, delta -> onChange(player.id, typeId, delta) },
+        )
         Divider()
     }
+}
 
-    Spacer(Modifier.height(8.dp))
-    PenaltySummaryRow(state)
+@Composable
+private fun PlayerPenaltyItem(
+    player: com.golfsupporter.data.model.Player,
+    isOpen: Boolean,
+    playerPenalties: Map<String, Int>,
+    activeTypes: List<com.golfsupporter.data.model.PenaltyType>,
+    onToggle: () -> Unit,
+    onChange: (typeId: String, delta: Int) -> Unit,
+) {
+    // Header — tap to expand/collapse.
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onToggle() }
+            .padding(vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(player.name, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+        Spacer(Modifier.width(10.dp))
+        val summary = activeTypes
+            .mapNotNull { t -> playerPenalties[t.id]?.let { "${t.emoji}×$it" } }
+            .joinToString("  ")
+        Text(
+            summary.ifEmpty { "벌칙 없음" },
+            modifier = Modifier.weight(1f),
+            fontSize = 12.sp,
+            color = MaterialTheme.colorScheme.onSurface.copy(
+                alpha = if (summary.isEmpty()) 0.45f else 0.85f
+            ),
+        )
+        Icon(
+            if (isOpen) Icons.Filled.KeyboardArrowUp else Icons.Filled.KeyboardArrowDown,
+            contentDescription = if (isOpen) "접기" else "펼치기",
+        )
+    }
+
+    // Expanded — choose which penalty to record for this player.
+    if (isOpen) {
+        activeTypes.forEach { type ->
+            val count = playerPenalties[type.id] ?: 0
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(start = 12.dp, bottom = 6.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text("${type.emoji} ${type.label}", modifier = Modifier.weight(1f), fontSize = 15.sp)
+                OutlinedIconButton(
+                    onClick = { onChange(type.id, -1) },
+                    enabled = count > 0,
+                    modifier = Modifier.size(40.dp),
+                ) { Text("−", fontSize = 20.sp) }
+                Text(
+                    "$count",
+                    modifier = Modifier.width(36.dp),
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Bold,
+                    textAlign = TextAlign.Center,
+                )
+                OutlinedIconButton(
+                    onClick = { onChange(type.id, 1) },
+                    modifier = Modifier.size(40.dp),
+                ) { Text("+", fontSize = 20.sp) }
+            }
+        }
+        Spacer(Modifier.height(4.dp))
+    }
 }
 
 @Composable
@@ -410,22 +432,4 @@ private fun ScoreCell(
             overflow = align,
         )
     }
-}
-
-@Composable
-private fun PenaltySummaryRow(state: RoundUiState) {
-    val parts = buildList {
-        state.players.forEach { player ->
-            val pens = state.penalties[player.id].orEmpty().filterValues { it > 0 }
-            pens.forEach { (typeId, count) ->
-                val type = state.activePenaltyTypes.firstOrNull { it.id == typeId }
-                if (type != null) add("${type.emoji}${player.name}:${type.label}×$count")
-            }
-        }
-    }
-    Text(
-        text = if (parts.isEmpty()) "이번 홀 벌칙 없음" else parts.joinToString("  "),
-        fontSize = 12.sp,
-        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
-    )
 }
