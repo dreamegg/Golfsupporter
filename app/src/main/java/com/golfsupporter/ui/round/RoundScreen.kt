@@ -181,21 +181,37 @@ fun RoundScreen(
 @Composable
 private fun RoundProgress(state: RoundUiState) {
     val range = RoundRules.holeRange(state.roundType)
-    val played = (state.currentHole - range.first).coerceAtLeast(0)
     val total = range.count()
-    val frontLabel = if (RoundRules.isFrontNine(state.currentHole)) "전반" else "후반"
+    val overallPos = (state.currentHole - range.first + 1).coerceIn(1, total)
+
+    // Segment (front/back nine) position within its own nine.
+    val isFront = RoundRules.isFrontNine(state.currentHole)
+    val segLabel = if (isFront) "전반" else "후반"
+    val segStart = if (isFront) 1 else 10
+    val segPos = state.currentHole - segStart + 1
+
     Column {
+        Row {
+            Text(
+                "$segLabel $segPos/9",
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Medium,
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.75f),
+                modifier = Modifier.weight(1f),
+            )
+            Text(
+                "전체 $overallPos/$total",
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Medium,
+                color = MaterialTheme.colorScheme.primary,
+            )
+        }
+        Spacer(Modifier.height(4.dp))
         LinearProgressIndicator(
-            progress = { (played.toFloat() + 1) / total },
+            progress = { overallPos.toFloat() / total },
             modifier = Modifier
                 .fillMaxWidth()
                 .height(6.dp),
-        )
-        Spacer(Modifier.height(4.dp))
-        Text(
-            "$frontLabel  ${state.currentHole - range.first + 1}/$total",
-            fontSize = 12.sp,
-            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
         )
     }
 }

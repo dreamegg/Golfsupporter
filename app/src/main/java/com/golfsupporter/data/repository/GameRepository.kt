@@ -2,8 +2,10 @@ package com.golfsupporter.data.repository
 
 import com.golfsupporter.data.local.DefaultPenalties
 import com.golfsupporter.data.local.dao.GameDao
+import com.golfsupporter.data.local.dao.NameHistoryDao
 import com.golfsupporter.data.local.dao.PenaltyTypeDao
 import com.golfsupporter.data.local.entity.GameSessionEntity
+import com.golfsupporter.data.local.entity.RememberedNameEntity
 import com.golfsupporter.data.model.GameSession
 import com.golfsupporter.data.model.GameSettings
 import com.golfsupporter.data.model.GameState
@@ -24,6 +26,7 @@ import javax.inject.Singleton
 class GameRepository @Inject constructor(
     private val gameDao: GameDao,
     private val penaltyTypeDao: PenaltyTypeDao,
+    private val nameHistoryDao: NameHistoryDao,
 ) {
 
     /** Seeds the 8 built-in penalty types on first launch. */
@@ -55,8 +58,22 @@ class GameRepository @Inject constructor(
     fun observeAllSessions(): Flow<List<GameSession>> =
         gameDao.observeAllSessions().map { list -> list.mapNotNull { loadSession(it.id) } }
 
+    /** Completed games, newest first — used by the history screen (PRD F-035/F-036). */
+    fun observeCompletedSessions(): Flow<List<GameSession>> =
+        gameDao.observeCompletedSessions().map { list -> list.mapNotNull { loadSession(it.id) } }
+
     suspend fun getActiveSessions(): List<GameSession> =
         gameDao.getActiveSessions().mapNotNull { loadSession(it.id) }
+
+    // ── Remembered player names ────────────────────────────────
+    fun observeRecentNames(): Flow<List<String>> = nameHistoryDao.observeRecent()
+
+    suspend fun rememberNames(names: List<String>) {
+        val now = System.currentTimeMillis()
+        val entities = names.map { it.trim() }.filter { it.isNotBlank() }.distinct()
+            .map { RememberedNameEntity(it, now) }
+        if (entities.isNotEmpty()) nameHistoryDao.upsertAll(entities)
+    }
 
     // ── Create / load / delete ─────────────────────────────────
     /** Persists a freshly configured game and all of its child rows. */

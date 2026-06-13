@@ -9,14 +9,17 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
+import androidx.compose.material3.Divider
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.SuggestionChip
+import androidx.compose.material3.OutlinedIconButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
@@ -24,16 +27,16 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
 /**
- * Penalty entry sheet (PRD F-022). Pick one or more players, then tap a penalty
- * to +1 the count; long-press to −1. Counts are saved immediately.
+ * Penalty entry sheet (PRD F-022). Pick one or more players, then use the
+ * explicit −/+ controls on each penalty type; the count applies to every
+ * selected player and is saved immediately.
  */
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
@@ -56,7 +59,7 @@ fun PenaltyBottomSheet(
         ) {
             Text("벌칙 입력", fontWeight = FontWeight.Bold, fontSize = 18.sp)
             Text(
-                "Hole ${state.currentHole} · 탭 +1 / 길게 눌러 −1",
+                "Hole ${state.currentHole} · 선택한 플레이어에게 −/+ 로 적용",
                 fontSize = 12.sp,
                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
             )
@@ -80,26 +83,38 @@ fun PenaltyBottomSheet(
             Spacer(Modifier.height(16.dp))
             Text("벌칙 항목", fontWeight = FontWeight.SemiBold)
             Spacer(Modifier.height(6.dp))
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                state.activePenaltyTypes.forEach { type ->
-                    val totalForType = selected.sumOf { pid ->
-                        state.penalties[pid]?.get(type.id) ?: 0
-                    }
-                    SuggestionChip(
-                        onClick = {},
-                        modifier = Modifier.pointerInput(selected, type.id) {
-                            detectTapGestures(
-                                onTap = { selected.forEach { pid -> onChange(pid, type.id, 1) } },
-                                onLongPress = { selected.forEach { pid -> onChange(pid, type.id, -1) } },
-                            )
-                        },
-                        label = {
-                            Text(
-                                "${type.emoji} ${type.label}" + if (totalForType > 0) "  ×$totalForType" else ""
-                            )
-                        },
+            state.activePenaltyTypes.forEach { type ->
+                val totalForType = selected.sumOf { pid -> state.penalties[pid]?.get(type.id) ?: 0 }
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        "${type.emoji} ${type.label}",
+                        modifier = Modifier.weight(1f),
+                        fontSize = 15.sp,
                     )
+                    OutlinedIconButton(
+                        onClick = { selected.forEach { pid -> onChange(pid, type.id, -1) } },
+                        enabled = selected.isNotEmpty() && totalForType > 0,
+                        modifier = Modifier.size(40.dp),
+                    ) { Text("−", fontSize = 20.sp) }
+                    Text(
+                        "$totalForType",
+                        modifier = Modifier.width(36.dp),
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Bold,
+                        textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                    )
+                    OutlinedIconButton(
+                        onClick = { selected.forEach { pid -> onChange(pid, type.id, 1) } },
+                        enabled = selected.isNotEmpty(),
+                        modifier = Modifier.size(40.dp),
+                    ) { Text("+", fontSize = 20.sp) }
                 }
+                Divider()
             }
 
             Spacer(Modifier.height(20.dp))

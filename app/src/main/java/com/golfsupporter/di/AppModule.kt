@@ -5,6 +5,7 @@ import androidx.room.Room
 import com.golfsupporter.data.course.local.CourseDao
 import com.golfsupporter.data.local.GolfDatabase
 import com.golfsupporter.data.local.dao.GameDao
+import com.golfsupporter.data.local.dao.NameHistoryDao
 import com.golfsupporter.data.local.dao.PenaltyTypeDao
 import dagger.Module
 import dagger.Provides
@@ -32,4 +33,7 @@ object AppModule {
 
     @Provides
     fun provideCourseDao(db: GolfDatabase): CourseDao = db.courseDao()
+
+    @Provides
+    fun provideNameHistoryDao(db: GolfDatabase): NameHistoryDao = db.nameHistoryDao()
 }

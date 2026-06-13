@@ -27,6 +27,9 @@ interface GameDao {
     @Query("SELECT * FROM game_sessions ORDER BY createdAt DESC")
     fun observeAllSessions(): Flow<List<GameSessionEntity>>
 
+    @Query("SELECT * FROM game_sessions WHERE isCompleted = 1 ORDER BY createdAt DESC")
+    fun observeCompletedSessions(): Flow<List<GameSessionEntity>>
+
     /** Most recent un-completed session, used for the home "continue" banner. */
     @Query("SELECT * FROM game_sessions WHERE isCompleted = 0 ORDER BY lastSavedAt DESC LIMIT 1")
     fun observeActiveSession(): Flow<GameSessionEntity?>

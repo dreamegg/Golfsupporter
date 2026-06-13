@@ -1,12 +1,16 @@
 # ⛳ Golf Score Tracker
 
 An offline-first Android app for tracking golf scores, penalties, and results for
-2–4 players over an 18-hole round. Built from the PRD (v1.3) — this repository
+2–8 players over an 18-hole round. Built from the PRD (v1.3) — this repository
 implements the **MVP (v1.0)** scope.
 
 ## Features (MVP)
 
-- **Game setup wizard (3 steps):** players (2–4), per-hole par, and game options.
+- **Game setup wizard (3 steps):** players (2–8, with default names A/B/C… and
+  quick-pick chips that remember previously-used names), an easy-to-read per-hole
+  par grid (front/back groups, tap to cycle 3→4→5), and game options.
+- **Game history:** completed rounds are kept and browsable from the home screen
+  ("지난 게임 보기"); tap any past game to view (and still edit) its result.
 - **Round types:** `FULL_18`, `FRONT_9`, `BACK_9`, and `SPLIT` (front/back with a
   pause in between).
 - **Two score-input modes:**

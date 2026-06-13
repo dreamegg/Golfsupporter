@@ -1,8 +1,11 @@
 package com.golfsupporter.ui.setup
 
 import android.Manifest
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
@@ -15,6 +18,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
@@ -42,6 +46,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
@@ -131,12 +136,13 @@ private fun StepIndicator(step: Int) {
 }
 
 // ── Step 1 ─────────────────────────────────────────────────────
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun StepPlayers(state: SetupUiState, viewModel: SetupViewModel) {
-    Text("인원 수", fontWeight = FontWeight.SemiBold)
+    Text("인원 수 ($MIN_PLAYERS~$MAX_PLAYERS명)", fontWeight = FontWeight.SemiBold)
     Spacer(Modifier.height(8.dp))
-    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        listOf(2, 3, 4).forEach { count ->
+    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        (MIN_PLAYERS..MAX_PLAYERS).forEach { count ->
             FilterChip(
                 selected = state.playerCount == count,
                 onClick = { viewModel.setPlayerCount(count) },
@@ -145,11 +151,31 @@ private fun StepPlayers(state: SetupUiState, viewModel: SetupViewModel) {
         }
     }
     Spacer(Modifier.height(16.dp))
-    Text("이름 (최대 ${MAX_NAME_LENGTH}자)", fontWeight = FontWeight.SemiBold)
+    Text("이름 (비워두면 기본값 사용)", fontWeight = FontWeight.SemiBold)
+
+    if (state.recentNames.isNotEmpty()) {
+        Spacer(Modifier.height(8.dp))
+        Text(
+            "최근 이름 (탭하여 추가)",
+            fontSize = 12.sp,
+            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+        )
+        Spacer(Modifier.height(4.dp))
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            state.recentNames.forEach { name ->
+                FilterChip(
+                    selected = false,
+                    onClick = { viewModel.applyRecentName(name) },
+                    label = { Text(name) },
+                )
+            }
+        }
+    }
+
     Spacer(Modifier.height(8.dp))
     (0 until state.playerCount).forEach { i ->
         OutlinedTextField(
-            value = state.playerNames[i],
+            value = state.playerNames.getOrElse(i) { "" },
             onValueChange = { viewModel.setPlayerName(i, it) },
             label = { Text("플레이어 ${i + 1}") },
             singleLine = true,
@@ -161,51 +187,97 @@ private fun StepPlayers(state: SetupUiState, viewModel: SetupViewModel) {
 }
 
 // ── Step 2 ─────────────────────────────────────────────────────
-@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun StepPars(state: SetupUiState, viewModel: SetupViewModel) {
     CourseDetectSection(state, viewModel)
     Spacer(Modifier.height(16.dp))
+
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Text("전체 일괄 설정", fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
+        val totalPar = state.activeHoles.sumOf { state.pars[it] ?: 4 }
+        Text(
+            "총 PAR $totalPar",
+            fontSize = 13.sp,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.primary,
+        )
+    }
+    Spacer(Modifier.height(8.dp))
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         listOf(3, 4, 5).forEach { par ->
-            OutlinedButton(onClick = { viewModel.setAllPars(par) }) {
-                Text("전체 PAR $par")
-            }
+            OutlinedButton(
+                onClick = { viewModel.setAllPars(par) },
+                modifier = Modifier.weight(1f),
+            ) { Text("모두 $par") }
         }
     }
+
     Spacer(Modifier.height(16.dp))
-    FlowRow(
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
+    Text(
+        "홀을 탭하면 3 → 4 → 5 순으로 바뀝니다",
+        fontSize = 12.sp,
+        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+    )
+    Spacer(Modifier.height(8.dp))
+
+    val front = state.activeHoles.filter { it in 1..9 }
+    val back = state.activeHoles.filter { it in 10..18 }
+    if (front.isNotEmpty()) {
+        HoleParGroup("전반", front, state, viewModel)
+        Spacer(Modifier.height(12.dp))
+    }
+    if (back.isNotEmpty()) {
+        HoleParGroup("후반", back, state, viewModel)
+    }
+}
+
+@Composable
+private fun HoleParGroup(label: String, holes: List<Int>, state: SetupUiState, viewModel: SetupViewModel) {
+    Text(label, fontWeight = FontWeight.Medium, fontSize = 13.sp)
+    Spacer(Modifier.height(6.dp))
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
     ) {
-        state.activeHoles.forEach { hole ->
-            HoleParToggle(
+        holes.forEach { hole ->
+            val par = state.pars[hole] ?: 4
+            ParCell(
                 hole = hole,
-                par = state.pars[hole] ?: 4,
-                onCycle = {
-                    val current = state.pars[hole] ?: 4
-                    val next = when (current) {
+                par = par,
+                modifier = Modifier.weight(1f),
+                onClick = {
+                    val next = when (par) {
                         3 -> 4
                         4 -> 5
                         else -> 3
                     }
                     viewModel.setPar(hole, next)
-                }
+                },
             )
         }
     }
 }
 
 @Composable
-private fun HoleParToggle(hole: Int, par: Int, onCycle: () -> Unit) {
-    OutlinedButton(
-        onClick = onCycle,
-        modifier = Modifier.width(72.dp),
-        contentPadding = androidx.compose.foundation.layout.PaddingValues(4.dp),
+private fun ParCell(hole: Int, par: Int, modifier: Modifier, onClick: () -> Unit) {
+    val scheme = MaterialTheme.colorScheme
+    val bg = when (par) {
+        3 -> scheme.secondaryContainer
+        5 -> scheme.tertiaryContainer
+        else -> scheme.surfaceVariant
+    }
+    Box(
+        modifier = modifier
+            .height(54.dp)
+            .clip(RoundedCornerShape(8.dp))
+            .background(bg)
+            .border(1.dp, scheme.outline.copy(alpha = 0.3f), RoundedCornerShape(8.dp))
+            .clickable { onClick() },
+        contentAlignment = Alignment.Center,
     ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Text("H$hole", fontSize = 11.sp)
-            Text("PAR $par", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+            Text("H$hole", fontSize = 10.sp, color = scheme.onSurface.copy(alpha = 0.6f))
+            Text("$par", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = scheme.onSurface)
         }
     }
 }

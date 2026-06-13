@@ -36,7 +36,7 @@ fun HomeScreen(
     onNewGame: () -> Unit,
     onContinue: (String) -> Unit,
     onStartBack: (String) -> Unit,
-    onOpenResult: (String) -> Unit,
+    onOpenHistory: () -> Unit,
     viewModel: HomeViewModel = hiltViewModel(),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
@@ -76,6 +76,15 @@ fun HomeScreen(
                 .height(56.dp),
         ) {
             Text("새 게임 시작", fontSize = 18.sp)
+        }
+        Spacer(Modifier.height(12.dp))
+        OutlinedButton(
+            onClick = onOpenHistory,
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(52.dp),
+        ) {
+            Text("지난 게임 보기", fontSize = 16.sp)
         }
     }
 

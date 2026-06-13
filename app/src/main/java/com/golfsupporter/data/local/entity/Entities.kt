@@ -77,6 +77,13 @@ data class PenaltyRecordEntity(
     val count: Int
 )
 
+/** Previously-used player names, surfaced as quick-pick chips in setup. */
+@Entity(tableName = "remembered_names")
+data class RememberedNameEntity(
+    @PrimaryKey val name: String,
+    val lastUsedAt: Long,
+)
+
 @Entity(tableName = "penalty_types")
 data class PenaltyTypeEntity(
     @PrimaryKey val id: String,

@@ -6,6 +6,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import com.golfsupporter.ui.history.HistoryScreen
 import com.golfsupporter.ui.home.HomeScreen
 import com.golfsupporter.ui.result.ResultScreen
 import com.golfsupporter.ui.round.InterstitialScreen
@@ -23,7 +24,14 @@ fun GolfNavGraph() {
                 onNewGame = { navController.navigate(Routes.SETUP) },
                 onContinue = { sessionId -> navController.navigate(Routes.round(sessionId)) },
                 onStartBack = { sessionId -> navController.navigate(Routes.round(sessionId)) },
-                onOpenResult = { sessionId -> navController.navigate(Routes.result(sessionId)) },
+                onOpenHistory = { navController.navigate(Routes.HISTORY) },
+            )
+        }
+
+        composable(Routes.HISTORY) {
+            HistoryScreen(
+                onBack = { navController.popBackStack() },
+                onOpen = { sessionId -> navController.navigate(Routes.result(sessionId)) },
             )
         }
 

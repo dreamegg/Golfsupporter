@@ -28,7 +28,7 @@ import javax.inject.Inject
 data class SetupUiState(
     val step: Int = 1,
     val playerCount: Int = 2,
-    val playerNames: List<String> = listOf("", "", "", ""),
+    val playerNames: List<String> = defaultPlayerNames(),
     val pars: Map<Int, Int> = (1..18).associateWith { 4 },
     val roundType: RoundType = RoundType.FULL_18,
     val scoreInputMode: ScoreInputMode = ScoreInputMode.BUTTON,
@@ -41,12 +41,18 @@ data class SetupUiState(
     val searchResults: List<GolfCourse> = emptyList(),
     val selectedCourseName: String? = null,
     val courseMessage: String? = null,
+    val recentNames: List<String> = emptyList(),
 ) {
     val activeHoles: List<Int> get() = RoundRules.holeRange(roundType).toList()
 }
 
 const val MAX_NAME_LENGTH = 8
 const val MAX_CUSTOM_PENALTIES = 20
+const val MIN_PLAYERS = 2
+const val MAX_PLAYERS = 8
+
+/** Default player names A, B, C … so users can skip naming (one per slot). */
+fun defaultPlayerNames(): List<String> = (0 until MAX_PLAYERS).map { ('A' + it).toString() }
 
 @HiltViewModel
 class SetupViewModel @Inject constructor(
@@ -74,6 +80,11 @@ class SetupViewModel @Inject constructor(
                 }
             }
         }
+        viewModelScope.launch {
+            repository.observeRecentNames().collect { names ->
+                _uiState.update { it.copy(recentNames = names) }
+            }
+        }
     }
 
     // ── Navigation between steps ───────────────────────────────
@@ -82,11 +93,23 @@ class SetupViewModel @Inject constructor(
     fun previousStep() = goToStep(_uiState.value.step - 1)
 
     // ── Step 1: players ────────────────────────────────────────
-    fun setPlayerCount(count: Int) = _uiState.update { it.copy(playerCount = count) }
+    fun setPlayerCount(count: Int) =
+        _uiState.update { it.copy(playerCount = count.coerceIn(MIN_PLAYERS, MAX_PLAYERS)) }
 
     fun setPlayerName(index: Int, name: String) = _uiState.update { state ->
         val trimmed = name.take(MAX_NAME_LENGTH)
         state.copy(playerNames = state.playerNames.toMutableList().apply { this[index] = trimmed })
+    }
+
+    /** Quick-fills a remembered name into the first empty/default slot. */
+    fun applyRecentName(name: String) = _uiState.update { state ->
+        val names = state.playerNames.toMutableList()
+        val slot = (0 until state.playerCount).firstOrNull { i ->
+            val cur = names.getOrElse(i) { "" }
+            cur.isBlank() || cur == ('A' + i).toString()
+        } ?: (state.playerCount - 1)
+        names[slot] = name.take(MAX_NAME_LENGTH)
+        state.copy(playerNames = names)
     }
 
     // ── Step 2: pars ───────────────────────────────────────────
@@ -195,15 +218,17 @@ class SetupViewModel @Inject constructor(
     }
 
     // ── Validation ─────────────────────────────────────────────
-    fun playersValid(): Boolean {
-        val s = _uiState.value
-        return (0 until s.playerCount).all { s.playerNames[it].isNotBlank() }
-    }
+    /** Always valid: blank names fall back to the default letter on create. */
+    fun playersValid(): Boolean = _uiState.value.playerCount in MIN_PLAYERS..MAX_PLAYERS
 
     // ── Build & persist the session ────────────────────────────
     fun createGame(onCreated: (String) -> Unit) {
         val s = _uiState.value
-        val players = (0 until s.playerCount).map { Player(id = it, name = s.playerNames[it].trim()) }
+        val players = (0 until s.playerCount).map { index ->
+            val name = s.playerNames.getOrElse(index) { "" }.trim()
+                .ifBlank { ('A' + index).toString() }
+            Player(id = index, name = name)
+        }
         val holes = s.activeHoles.map { HoleConfig(holeNumber = it, par = s.pars[it] ?: 4) }
 
         val startHole = RoundRules.firstHole(s.roundType)
@@ -239,6 +264,7 @@ class SetupViewModel @Inject constructor(
 
         viewModelScope.launch {
             repository.createSession(session)
+            repository.rememberNames(players.map { it.name })
             onCreated(session.id)
         }
     }

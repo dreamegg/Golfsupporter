@@ -3,6 +3,7 @@ package com.golfsupporter.ui.navigation
 object Routes {
     const val HOME = "home"
     const val SETUP = "setup"
+    const val HISTORY = "history"
     const val ROUND = "round/{sessionId}"
     const val INTERSTITIAL = "interstitial/{sessionId}"
     const val RESULT = "result/{sessionId}"
