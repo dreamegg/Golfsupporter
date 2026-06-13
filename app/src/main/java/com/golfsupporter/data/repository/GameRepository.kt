@@ -102,6 +102,12 @@ class GameRepository @Inject constructor(
 
     suspend fun deleteSession(id: String) = gameDao.deleteSession(id)
 
+    /** Wipes all games, scores, penalties, edit history and remembered names. */
+    suspend fun resetAllData() {
+        gameDao.clearAllGameData()
+        nameHistoryDao.clearAll()
+    }
+
     // ── Incremental auto-save ──────────────────────────────────
     /** Saves a single hole's score (confirmed or temporary). */
     suspend fun saveHoleScore(sessionId: String, score: HoleScore, state: GameState) {

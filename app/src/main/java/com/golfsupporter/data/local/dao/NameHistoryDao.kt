@@ -14,4 +14,7 @@ interface NameHistoryDao {
 
     @Query("SELECT name FROM remembered_names ORDER BY lastUsedAt DESC LIMIT 12")
     fun observeRecent(): Flow<List<String>>
+
+    @Query("DELETE FROM remembered_names")
+    suspend fun clearAll()
 }

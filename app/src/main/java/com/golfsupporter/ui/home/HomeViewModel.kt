@@ -37,6 +37,11 @@ class HomeViewModel @Inject constructor(
         .map { session -> HomeUiState(banner = session?.toBanner()) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), HomeUiState())
 
+    /** Wipes all saved games, history and remembered names. */
+    fun resetAllData() {
+        viewModelScope.launch { repository.resetAllData() }
+    }
+
     /** Marks the active game as completed so it leaves the continue banner (F-046). */
     fun discardActive(sessionId: String) {
         viewModelScope.launch {

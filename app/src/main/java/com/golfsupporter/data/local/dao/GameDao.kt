@@ -4,6 +4,7 @@ import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
+import androidx.room.Transaction
 import androidx.room.Upsert
 import com.golfsupporter.data.local.entity.GameSessionEntity
 import com.golfsupporter.data.local.entity.GameSettingsEntity
@@ -87,4 +88,25 @@ interface GameDao {
 
     @Query("SELECT * FROM score_edits WHERE sessionId = :sessionId ORDER BY editedAt")
     suspend fun getScoreEdits(sessionId: String): List<ScoreEditEntity>
+
+    // ── Full reset ─────────────────────────────────────────────
+    // No FK cascade is declared, so every game table is cleared explicitly.
+    @Query("DELETE FROM score_edits") suspend fun clearScoreEdits()
+    @Query("DELETE FROM penalty_records") suspend fun clearPenaltyRecords()
+    @Query("DELETE FROM hole_scores") suspend fun clearHoleScores()
+    @Query("DELETE FROM hole_configs") suspend fun clearHoleConfigs()
+    @Query("DELETE FROM players") suspend fun clearPlayers()
+    @Query("DELETE FROM game_settings") suspend fun clearSettings()
+    @Query("DELETE FROM game_sessions") suspend fun clearSessions()
+
+    @Transaction
+    suspend fun clearAllGameData() {
+        clearScoreEdits()
+        clearPenaltyRecords()
+        clearHoleScores()
+        clearHoleConfigs()
+        clearPlayers()
+        clearSettings()
+        clearSessions()
+    }
 }

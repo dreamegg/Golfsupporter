@@ -41,6 +41,7 @@ fun HomeScreen(
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     var confirmDiscard by remember { mutableStateOf<String?>(null) }
+    var confirmReset by remember { mutableStateOf(false) }
 
     Column(
         modifier = Modifier
@@ -86,6 +87,14 @@ fun HomeScreen(
         ) {
             Text("지난 게임 보기", fontSize = 16.sp)
         }
+        Spacer(Modifier.height(24.dp))
+        TextButton(onClick = { confirmReset = true }) {
+            Text(
+                "🗑 데이터 리셋",
+                fontSize = 14.sp,
+                color = MaterialTheme.colorScheme.error,
+            )
+        }
     }
 
     confirmDiscard?.let { sessionId ->
@@ -102,6 +111,25 @@ fun HomeScreen(
             },
             dismissButton = {
                 TextButton(onClick = { confirmDiscard = null }) { Text("취소") }
+            }
+        )
+    }
+
+    if (confirmReset) {
+        AlertDialog(
+            onDismissRequest = { confirmReset = false },
+            title = { Text("데이터 리셋") },
+            text = { Text("모든 게임 기록·진행 중 라운드·최근 이름이 영구 삭제됩니다. 되돌릴 수 없습니다.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    viewModel.resetAllData()
+                    confirmReset = false
+                }) {
+                    Text("전체 삭제", color = MaterialTheme.colorScheme.error)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { confirmReset = false }) { Text("취소") }
             }
         )
     }
