@@ -18,6 +18,8 @@ playServicesLocation = "21.3.0"
 retrofit = "2.11.0"
 okhttp = "4.12.0"
 accompanist = "0.36.0"
+robolectric = "4.13"
+androidxTestCore = "1.6.1"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -51,6 +53,9 @@ junit = { group = "junit", name = "junit", version.ref = "junit" }
 androidx-junit = { group = "androidx.test.ext", name = "junit", version.ref = "androidxJunit" }
 androidx-espresso-core = { group = "androidx.test.espresso", name = "espresso-core", version.ref = "espresso" }
 kotlinx-coroutines-test = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-test", version.ref = "coroutines" }
+robolectric = { group = "org.robolectric", name = "robolectric", version.ref = "robolectric" }
+androidx-test-core = { group = "androidx.test", name = "core", version.ref = "androidxTestCore" }
+androidx-room-testing = { group = "androidx.room", name = "room-testing", version.ref = "room" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
