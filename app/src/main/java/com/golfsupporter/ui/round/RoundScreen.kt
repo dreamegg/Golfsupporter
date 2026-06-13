@@ -1,16 +1,32 @@
 package com.golfsupporter.ui.round
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
+import androidx.compose.material3.Icon
+import androidx.compose.material3.OutlinedIconButton
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Divider
@@ -46,7 +62,6 @@ fun RoundScreen(
     viewModel: RoundViewModel = hiltViewModel(),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
-    var showPenaltySheet by remember { mutableStateOf(false) }
 
     // Persist a snapshot when the app is backgrounded (onStop) — PRD F-042.
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -132,11 +147,17 @@ fun RoundScreen(
                 Spacer(Modifier.height(8.dp))
                 Divider()
                 Spacer(Modifier.height(8.dp))
-                PenaltySummaryRow(state)
-                Spacer(Modifier.height(8.dp))
-                OutlinedButton(onClick = { showPenaltySheet = true }) {
-                    Text("⚠️ 벌칙 입력")
-                }
+                PenaltyInlineSection(
+                    state = state,
+                    onChange = { playerId, typeId, delta -> viewModel.changePenalty(playerId, typeId, delta) },
+                )
+            }
+
+            if (state.holeScores.isNotEmpty()) {
+                Spacer(Modifier.height(12.dp))
+                Divider()
+                Spacer(Modifier.height(12.dp))
+                Scoreboard(state)
             }
         }
 
@@ -169,13 +190,89 @@ fun RoundScreen(
         }
     }
 
-    if (showPenaltySheet) {
-        PenaltyBottomSheet(
-            state = state,
-            onChange = { playerId, typeId, delta -> viewModel.changePenalty(playerId, typeId, delta) },
-            onDismiss = { showPenaltySheet = false },
-        )
+}
+
+/**
+ * Inline penalty entry (replaces the bottom sheet): pick one or more players by
+ * name, then the −/+ controls per penalty type apply to everyone selected. The
+ * controls stay disabled until at least one name is chosen.
+ */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun PenaltyInlineSection(
+    state: RoundUiState,
+    onChange: (playerId: Int, typeId: String, delta: Int) -> Unit,
+) {
+    var selected by remember { mutableStateOf(emptySet<Int>()) }
+
+    Text("⚠️ 벌칙 입력", fontWeight = FontWeight.Bold, fontSize = 15.sp)
+    Spacer(Modifier.height(4.dp))
+    Text(
+        "이름을 선택한 뒤 −/+ 로 입력하세요",
+        fontSize = 12.sp,
+        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+    )
+    Spacer(Modifier.height(8.dp))
+
+    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        state.players.forEach { player ->
+            val isSel = player.id in selected
+            FilterChip(
+                selected = isSel,
+                onClick = {
+                    selected = if (isSel) selected - player.id else selected + player.id
+                },
+                label = { Text(player.name) },
+                leadingIcon = if (isSel) {
+                    { Icon(Icons.Filled.Check, contentDescription = null, modifier = Modifier.size(18.dp)) }
+                } else null,
+                colors = FilterChipDefaults.filterChipColors(
+                    selectedContainerColor = MaterialTheme.colorScheme.primary,
+                    selectedLabelColor = MaterialTheme.colorScheme.onPrimary,
+                    selectedLeadingIconColor = MaterialTheme.colorScheme.onPrimary,
+                ),
+                border = FilterChipDefaults.filterChipBorder(
+                    enabled = true,
+                    selected = isSel,
+                    borderColor = MaterialTheme.colorScheme.outline,
+                ),
+            )
+        }
     }
+
+    Spacer(Modifier.height(8.dp))
+    state.activePenaltyTypes.forEach { type ->
+        val totalForType = selected.sumOf { pid -> state.penalties[pid]?.get(type.id) ?: 0 }
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text("${type.emoji} ${type.label}", modifier = Modifier.weight(1f), fontSize = 15.sp)
+            OutlinedIconButton(
+                onClick = { selected.forEach { pid -> onChange(pid, type.id, -1) } },
+                enabled = selected.isNotEmpty() && totalForType > 0,
+                modifier = Modifier.size(40.dp),
+            ) { Text("−", fontSize = 20.sp) }
+            Text(
+                "$totalForType",
+                modifier = Modifier.width(36.dp),
+                fontSize = 16.sp,
+                fontWeight = FontWeight.Bold,
+                textAlign = TextAlign.Center,
+            )
+            OutlinedIconButton(
+                onClick = { selected.forEach { pid -> onChange(pid, type.id, 1) } },
+                enabled = selected.isNotEmpty(),
+                modifier = Modifier.size(40.dp),
+            ) { Text("+", fontSize = 20.sp) }
+        }
+        Divider()
+    }
+
+    Spacer(Modifier.height(8.dp))
+    PenaltySummaryRow(state)
 }
 
 @Composable
@@ -212,6 +309,105 @@ private fun RoundProgress(state: RoundUiState) {
             modifier = Modifier
                 .fillMaxWidth()
                 .height(6.dp),
+        )
+    }
+}
+
+/**
+ * Live scorecard table: previous holes' per-player scores plus the running
+ * total shot count, so players can monitor progress during input. The hole
+ * columns scroll horizontally while the player labels and total stay pinned.
+ */
+@Composable
+private fun Scoreboard(state: RoundUiState) {
+    val holes = state.holeScores.keys.sorted()
+    if (holes.isEmpty()) return
+
+    val labelW = 64.dp
+    val holeW = 34.dp
+    val totalW = 52.dp
+    val headerBg = MaterialTheme.colorScheme.surfaceVariant
+    val currentBg = MaterialTheme.colorScheme.primaryContainer
+    val totalPar = state.holePars.values.sum()
+
+    Text("📊 스코어보드", fontWeight = FontWeight.Bold, fontSize = 14.sp)
+    Spacer(Modifier.height(6.dp))
+    Row {
+        // ── Pinned label column ──
+        Column {
+            ScoreCell("홀", labelW, bg = headerBg, bold = true)
+            ScoreCell("PAR", labelW, bg = headerBg)
+            state.players.forEach { p ->
+                ScoreCell(p.name, labelW, bold = true, align = TextOverflow.Ellipsis)
+            }
+        }
+
+        // ── Scrollable hole columns ──
+        Row(
+            modifier = Modifier
+                .weight(1f)
+                .horizontalScroll(rememberScrollState())
+        ) {
+            holes.forEach { hole ->
+                val isCurrent = hole == state.currentHole
+                val par = state.holePars[hole] ?: 0
+                Column {
+                    ScoreCell("$hole", holeW, bg = if (isCurrent) currentBg else headerBg, bold = true)
+                    ScoreCell("$par", holeW, bg = if (isCurrent) currentBg else headerBg)
+                    state.players.forEach { p ->
+                        val relative = state.holeScores[hole]?.get(p.id) ?: 0
+                        ScoreCell(
+                            text = "${par + relative}",
+                            width = holeW,
+                            color = ScoreLabel.colorFor(relative),
+                            bg = if (isCurrent) currentBg.copy(alpha = 0.4f) else Color.Transparent,
+                        )
+                    }
+                }
+            }
+        }
+
+        // ── Pinned total (shot count) column ──
+        Column {
+            ScoreCell("합계", totalW, bg = headerBg, bold = true)
+            ScoreCell("$totalPar", totalW, bg = headerBg)
+            state.players.forEach { p ->
+                val shots = state.totalShots[p.id] ?: 0
+                val rel = state.cumulative[p.id] ?: 0
+                ScoreCell(
+                    text = "$shots",
+                    width = totalW,
+                    color = ScoreLabel.colorFor(rel),
+                    bold = true,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun ScoreCell(
+    text: String,
+    width: Dp,
+    color: Color = Color.Unspecified,
+    bold: Boolean = false,
+    bg: Color = Color.Transparent,
+    align: TextOverflow = TextOverflow.Clip,
+) {
+    Box(
+        modifier = Modifier
+            .width(width)
+            .height(28.dp)
+            .background(bg),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            text = text,
+            fontSize = 12.sp,
+            color = color,
+            fontWeight = if (bold) FontWeight.Bold else FontWeight.Normal,
+            maxLines = 1,
+            overflow = align,
         )
     }
 }

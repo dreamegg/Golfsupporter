@@ -24,8 +24,6 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Divider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.Tab
-import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -57,7 +55,6 @@ fun ResultScreen(
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val context = LocalContext.current
-    var selectedTab by remember { mutableIntStateOf(0) }
     var scoreDialog by remember { mutableStateOf<Triple<Player, Int, Int>?>(null) } // player, hole, par
 
     if (state.loading) {
@@ -94,7 +91,7 @@ fun ResultScreen(
         }
 
         Spacer(Modifier.height(8.dp))
-        RankingRow(viewModel.rankingText())
+        RankingRow(viewModel.rankingText(), state.holes.sumOf { it.par })
         Spacer(Modifier.height(12.dp))
 
         if (state.editMode) {
@@ -106,23 +103,27 @@ fun ResultScreen(
             Spacer(Modifier.height(8.dp))
         }
 
-        val tabs = if (state.penaltyEnabled) listOf("스코어카드", "벌칙 요약") else listOf("스코어카드")
-        TabRow(selectedTabIndex = selectedTab) {
-            tabs.forEachIndexed { i, title ->
-                Tab(selected = selectedTab == i, onClick = { selectedTab = i }, text = { Text(title) })
-            }
-        }
-        Spacer(Modifier.height(12.dp))
+        Column(
+            modifier = Modifier
+                .weight(1f)
+                .verticalScroll(rememberScrollState())
+        ) {
+            Text("스코어카드", fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+            Spacer(Modifier.height(8.dp))
+            ScorecardTable(
+                state = state,
+                onCellTap = { player, hole, par ->
+                    if (state.editMode) scoreDialog = Triple(player, hole, par)
+                },
+            )
 
-        Box(Modifier.weight(1f)) {
-            when (selectedTab) {
-                0 -> ScorecardTable(
-                    state = state,
-                    onCellTap = { player, hole, par ->
-                        if (state.editMode) scoreDialog = Triple(player, hole, par)
-                    },
-                )
-                1 -> PenaltyTable(
+            if (state.penaltyEnabled) {
+                Spacer(Modifier.height(20.dp))
+                Divider()
+                Spacer(Modifier.height(12.dp))
+                Text("벌칙 요약", fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                Spacer(Modifier.height(8.dp))
+                PenaltyTable(
                     state = state,
                     onCellChange = { playerId, typeId, delta -> viewModel.editPenalty(playerId, typeId, delta) },
                 )
@@ -153,7 +154,7 @@ fun ResultScreen(
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun RankingRow(ranking: List<PlayerTotals>) {
+private fun RankingRow(ranking: List<PlayerTotals>, totalPar: Int) {
     val medals = listOf("🥇", "🥈", "🥉")
     FlowRow(
         modifier = Modifier.fillMaxWidth(),
@@ -161,8 +162,9 @@ private fun RankingRow(ranking: List<PlayerTotals>) {
         verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
         ranking.forEachIndexed { i, pt ->
+            val shots = pt.total + totalPar
             Text(
-                "${medals.getOrElse(i) { "${i + 1}." }} ${pt.player.name} ${ScoreLabel.formatTotal(pt.total)}",
+                "${medals.getOrElse(i) { "${i + 1}." }} ${pt.player.name} ${ScoreLabel.formatTotal(pt.total)} · ${shots}타",
                 fontWeight = FontWeight.SemiBold,
                 fontSize = 15.sp,
             )
@@ -178,12 +180,10 @@ private fun ScorecardTable(
     val frontHoles = state.holes.filter { it.holeNumber in 1..9 }
     val backHoles = state.holes.filter { it.holeNumber in 10..18 }
     val cellW = 40.dp
+    val totalW = 52.dp
+    val totalPar = state.holes.sumOf { it.par }
 
-    Column(
-        Modifier
-            .fillMaxSize()
-            .horizontalScroll(rememberScrollState())
-    ) {
+    Column(Modifier.horizontalScroll(rememberScrollState())) {
         // Header row
         Row {
             HeaderCell("", 64.dp)
@@ -191,40 +191,62 @@ private fun ScorecardTable(
             if (frontHoles.isNotEmpty()) HeaderCell("전반", cellW)
             backHoles.forEach { HeaderCell("H${it.holeNumber}", cellW) }
             if (backHoles.isNotEmpty()) HeaderCell("후반", cellW)
-            HeaderCell("합계", cellW)
+            HeaderCell("합계", totalW)
         }
         Divider()
-        Column(Modifier.verticalScroll(rememberScrollState())) {
-            state.players.forEach { player ->
-                val cells = state.scoreCells[player.id].orEmpty()
-                val totals = state.totals.firstOrNull { it.player.id == player.id }
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    HeaderCell(player.name, 64.dp)
-                    frontHoles.forEach { h ->
-                        ScoreCell(
-                            relative = cells[h.holeNumber] ?: 0,
-                            width = cellW,
-                            edited = (player.id to h.holeNumber) in state.editedScoreCells,
-                            editable = state.editMode,
-                            onTap = { onCellTap(player, h.holeNumber, h.par) },
-                        )
-                    }
-                    if (frontHoles.isNotEmpty()) SubtotalCell(totals?.front ?: 0, cellW)
-                    backHoles.forEach { h ->
-                        ScoreCell(
-                            relative = cells[h.holeNumber] ?: 0,
-                            width = cellW,
-                            edited = (player.id to h.holeNumber) in state.editedScoreCells,
-                            editable = state.editMode,
-                            onTap = { onCellTap(player, h.holeNumber, h.par) },
-                        )
-                    }
-                    if (backHoles.isNotEmpty()) SubtotalCell(totals?.back ?: 0, cellW)
-                    SubtotalCell(totals?.total ?: 0, cellW, bold = true)
+        state.players.forEach { player ->
+            val cells = state.scoreCells[player.id].orEmpty()
+            val totals = state.totals.firstOrNull { it.player.id == player.id }
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                HeaderCell(player.name, 64.dp)
+                frontHoles.forEach { h ->
+                    ScoreCell(
+                        relative = cells[h.holeNumber] ?: 0,
+                        width = cellW,
+                        edited = (player.id to h.holeNumber) in state.editedScoreCells,
+                        editable = state.editMode,
+                        onTap = { onCellTap(player, h.holeNumber, h.par) },
+                    )
                 }
-                Divider()
+                if (frontHoles.isNotEmpty()) SubtotalCell(totals?.front ?: 0, cellW)
+                backHoles.forEach { h ->
+                    ScoreCell(
+                        relative = cells[h.holeNumber] ?: 0,
+                        width = cellW,
+                        edited = (player.id to h.holeNumber) in state.editedScoreCells,
+                        editable = state.editMode,
+                        onTap = { onCellTap(player, h.holeNumber, h.par) },
+                    )
+                }
+                if (backHoles.isNotEmpty()) SubtotalCell(totals?.back ?: 0, cellW)
+                TotalShotCell(relative = totals?.total ?: 0, shots = (totals?.total ?: 0) + totalPar, width = totalW)
             }
+            Divider()
         }
+    }
+}
+
+/** Final total cell: over-par on top, absolute shot count below. */
+@Composable
+private fun TotalShotCell(relative: Int, shots: Int, width: androidx.compose.ui.unit.Dp) {
+    Column(
+        modifier = Modifier
+            .width(width)
+            .height(40.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center,
+    ) {
+        Text(
+            ScoreLabel.formatTotal(relative),
+            fontWeight = FontWeight.Bold,
+            fontSize = 13.sp,
+            color = MaterialTheme.colorScheme.primary,
+        )
+        Text(
+            "${shots}타",
+            fontSize = 11.sp,
+            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+        )
     }
 }
 
@@ -296,11 +318,7 @@ private fun PenaltyTable(
     onCellChange: (playerId: Int, typeId: String, delta: Int) -> Unit,
 ) {
     val cellW = 56.dp
-    Column(
-        Modifier
-            .fillMaxSize()
-            .horizontalScroll(rememberScrollState())
-    ) {
+    Column(Modifier.horizontalScroll(rememberScrollState())) {
         Row {
             HeaderCell("", 64.dp)
             state.penaltyTypes.forEach { HeaderCell(it.emoji, cellW) }

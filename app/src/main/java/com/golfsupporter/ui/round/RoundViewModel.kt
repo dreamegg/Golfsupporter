@@ -39,7 +39,10 @@ data class RoundUiState(
     val par: Int = 4,
     val phase: RoundPhase = RoundPhase.FRONT_NINE,
     val scores: Map<Int, Int> = emptyMap(),          // playerId -> relative for current hole
-    val cumulative: Map<Int, Int> = emptyMap(),       // playerId -> running total
+    val cumulative: Map<Int, Int> = emptyMap(),       // playerId -> running total (relative to par)
+    val holeScores: Map<Int, Map<Int, Int>> = emptyMap(), // hole -> (playerId -> relative)
+    val holePars: Map<Int, Int> = emptyMap(),         // hole -> par (only for played holes)
+    val totalShots: Map<Int, Int> = emptyMap(),       // playerId -> total actual shot count
     val penalties: Map<Int, Map<String, Int>> = emptyMap(), // playerId -> (typeId -> count) for current hole
     val firstHole: Int = 1,
     val lastHole: Int = 18,
@@ -144,6 +147,12 @@ class RoundViewModel @Inject constructor(
         val cumulative = session.players.associate { player ->
             player.id to scoresByHole.entries.sumOf { (_, m) -> m[player.id] ?: 0 }
         }
+        val playedHoles = scoresByHole.keys.sorted()
+        val holeScoresSnapshot = playedHoles.associateWith { scoresByHole[it].orEmpty().toMap() }
+        val holePars = playedHoles.associateWith { parFor(it) }
+        val totalShots = session.players.associate { player ->
+            player.id to scoresByHole.entries.sumOf { (h, m) -> parFor(h) + (m[player.id] ?: 0) }
+        }
         val holePenalties = session.players.associate { player ->
             player.id to (penaltiesByHole[hole].orEmpty()
                 .filterKeys { it.first == player.id }
@@ -162,6 +171,9 @@ class RoundViewModel @Inject constructor(
                 phase = phase,
                 scores = scoresByHole[hole].orEmpty().toMap(),
                 cumulative = cumulative,
+                holeScores = holeScoresSnapshot,
+                holePars = holePars,
+                totalShots = totalShots,
                 penalties = holePenalties,
                 firstHole = RoundRules.firstHole(session.settings.roundType),
                 lastHole = RoundRules.lastHole(session.settings.roundType),

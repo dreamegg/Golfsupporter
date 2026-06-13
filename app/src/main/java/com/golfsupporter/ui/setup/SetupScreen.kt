@@ -2,7 +2,6 @@ package com.golfsupporter.ui.setup
 
 import android.Manifest
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -28,6 +27,7 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -37,6 +37,8 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -143,10 +145,24 @@ private fun StepPlayers(state: SetupUiState, viewModel: SetupViewModel) {
     Spacer(Modifier.height(8.dp))
     FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         (MIN_PLAYERS..MAX_PLAYERS).forEach { count ->
+            val isSel = state.playerCount == count
             FilterChip(
-                selected = state.playerCount == count,
+                selected = isSel,
                 onClick = { viewModel.setPlayerCount(count) },
                 label = { Text("${count}명") },
+                leadingIcon = if (isSel) {
+                    { Icon(Icons.Filled.Check, contentDescription = null, modifier = Modifier.size(18.dp)) }
+                } else null,
+                colors = FilterChipDefaults.filterChipColors(
+                    selectedContainerColor = MaterialTheme.colorScheme.primary,
+                    selectedLabelColor = MaterialTheme.colorScheme.onPrimary,
+                    selectedLeadingIconColor = MaterialTheme.colorScheme.onPrimary,
+                ),
+                border = FilterChipDefaults.filterChipBorder(
+                    enabled = true,
+                    selected = isSel,
+                    borderColor = MaterialTheme.colorScheme.outline,
+                ),
             )
         }
     }
@@ -156,17 +172,36 @@ private fun StepPlayers(state: SetupUiState, viewModel: SetupViewModel) {
     if (state.recentNames.isNotEmpty()) {
         Spacer(Modifier.height(8.dp))
         Text(
-            "최근 이름 (탭하여 추가)",
+            "최근 이름 (탭하여 추가 · ✓ = 사용 중)",
             fontSize = 12.sp,
             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
         )
         Spacer(Modifier.height(4.dp))
+        val usedNames = state.playerNames.take(state.playerCount).toSet()
         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             state.recentNames.forEach { name ->
+                val isUsed = name in usedNames
                 FilterChip(
-                    selected = false,
+                    selected = isUsed,
                     onClick = { viewModel.applyRecentName(name) },
                     label = { Text(name) },
+                    leadingIcon = {
+                        Icon(
+                            if (isUsed) Icons.Filled.Check else Icons.Filled.Add,
+                            contentDescription = null,
+                            modifier = Modifier.size(18.dp),
+                        )
+                    },
+                    colors = FilterChipDefaults.filterChipColors(
+                        selectedContainerColor = MaterialTheme.colorScheme.primary,
+                        selectedLabelColor = MaterialTheme.colorScheme.onPrimary,
+                        selectedLeadingIconColor = MaterialTheme.colorScheme.onPrimary,
+                    ),
+                    border = FilterChipDefaults.filterChipBorder(
+                        enabled = true,
+                        selected = isUsed,
+                        borderColor = MaterialTheme.colorScheme.outline,
+                    ),
                 )
             }
         }
@@ -260,24 +295,24 @@ private fun HoleParGroup(label: String, holes: List<Int>, state: SetupUiState, v
 
 @Composable
 private fun ParCell(hole: Int, par: Int, modifier: Modifier, onClick: () -> Unit) {
-    val scheme = MaterialTheme.colorScheme
+    // Vivid, distinct colours per par so the layout is readable at a glance.
     val bg = when (par) {
-        3 -> scheme.secondaryContainer
-        5 -> scheme.tertiaryContainer
-        else -> scheme.surfaceVariant
+        3 -> androidx.compose.ui.graphics.Color(0xFF2E9E5B) // green — short
+        5 -> androidx.compose.ui.graphics.Color(0xFFE2682B) // orange — long
+        else -> androidx.compose.ui.graphics.Color(0xFF2E78D2) // blue — par 4
     }
+    val onBg = androidx.compose.ui.graphics.Color.White
     Box(
         modifier = modifier
             .height(54.dp)
             .clip(RoundedCornerShape(8.dp))
             .background(bg)
-            .border(1.dp, scheme.outline.copy(alpha = 0.3f), RoundedCornerShape(8.dp))
             .clickable { onClick() },
         contentAlignment = Alignment.Center,
     ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Text("H$hole", fontSize = 10.sp, color = scheme.onSurface.copy(alpha = 0.6f))
-            Text("$par", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = scheme.onSurface)
+            Text("H$hole", fontSize = 10.sp, color = onBg.copy(alpha = 0.8f))
+            Text("$par", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = onBg)
         }
     }
 }
