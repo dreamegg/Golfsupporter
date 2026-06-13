@@ -18,11 +18,13 @@ class CourseRepository @Inject constructor(
     private val api: GolfCourseApi,
 ) {
 
-    /** Seeds the bundled sample courses on first launch. */
+    /**
+     * Seeds the bundled sample courses. Upserts unconditionally (keyed by id) so
+     * courses added in an app update appear on already-seeded devices without
+     * disturbing remote-cached entries.
+     */
     suspend fun ensureSeeded() {
-        if (courseDao.count() == 0) {
-            cache(SampleCourses.list)
-        }
+        cache(SampleCourses.list)
     }
 
     /** Nearby courses within [radiusKm], sorted by distance (PRD G-002). */
