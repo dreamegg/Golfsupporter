@@ -139,7 +139,7 @@ private fun StepIndicator(step: Int) {
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun StepPlayers(state: SetupUiState, viewModel: SetupViewModel) {
-    Text("인원 수 ($MIN_PLAYERS~$MAX_PLAYERS명)", fontWeight = FontWeight.SemiBold)
+    Text("인원 수 ($MIN_PLAYERS~${MAX_PLAYERS}명)", fontWeight = FontWeight.SemiBold)
     Spacer(Modifier.height(8.dp))
     FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         (MIN_PLAYERS..MAX_PLAYERS).forEach { count ->
